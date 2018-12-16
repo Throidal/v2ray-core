@@ -150,7 +150,8 @@ func NewReceivingWorker(kcp *Connection) *ReceivingWorker {
 
 func (w *ReceivingWorker) Release() {
 	w.Lock()
-	w.leftOver.Release()
+	buf.ReleaseMulti(w.leftOver)
+	w.leftOver = nil
 	w.Unlock()
 }
 
@@ -185,7 +186,7 @@ func (w *ReceivingWorker) ReadMultiBuffer() buf.MultiBuffer {
 		return mb
 	}
 
-	mb := buf.NewMultiBufferCap(32)
+	mb := make(buf.MultiBuffer, 0, 32)
 
 	w.Lock()
 	defer w.Unlock()
@@ -195,7 +196,7 @@ func (w *ReceivingWorker) ReadMultiBuffer() buf.MultiBuffer {
 			break
 		}
 		w.nextNumber++
-		mb.Append(seg.Detach())
+		mb = append(mb, seg.Detach())
 		seg.Release()
 	}
 
@@ -204,7 +205,10 @@ func (w *ReceivingWorker) ReadMultiBuffer() buf.MultiBuffer {
 
 func (w *ReceivingWorker) Read(b []byte) int {
 	mb := w.ReadMultiBuffer()
-	nBytes, _ := mb.Read(b)
+	if mb.IsEmpty() {
+		return 0
+	}
+	mb, nBytes := buf.SplitBytes(mb, b)
 	if !mb.IsEmpty() {
 		w.leftOver = mb
 	}

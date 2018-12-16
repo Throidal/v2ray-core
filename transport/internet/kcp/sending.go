@@ -4,7 +4,6 @@ import (
 	"container/list"
 	"sync"
 
-	"v2ray.com/core/common"
 	"v2ray.com/core/common/buf"
 )
 
@@ -43,12 +42,12 @@ func (sw *SendingWindow) IsEmpty() bool {
 	return sw.cache.Len() == 0
 }
 
-func (sw *SendingWindow) Push(number uint32) *buf.Buffer {
+func (sw *SendingWindow) Push(number uint32, b *buf.Buffer) {
 	seg := NewDataSegment()
 	seg.Number = number
+	seg.payload = b
 
 	sw.cache.PushBack(seg)
-	return seg.Data()
 }
 
 func (sw *SendingWindow) FirstNumber() uint32 {
@@ -261,7 +260,7 @@ func (w *SendingWorker) ProcessSegment(current uint32, seg *AckSegment, rto uint
 	}
 }
 
-func (w *SendingWorker) Push(f buf.Supplier) bool {
+func (w *SendingWorker) Push(b *buf.Buffer) bool {
 	w.Lock()
 	defer w.Unlock()
 
@@ -273,9 +272,8 @@ func (w *SendingWorker) Push(f buf.Supplier) bool {
 		return false
 	}
 
-	b := w.window.Push(w.nextNumber)
+	w.window.Push(w.nextNumber, b)
 	w.nextNumber++
-	common.Must(b.Reset(f))
 	return true
 }
 
